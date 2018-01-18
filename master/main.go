@@ -7,5 +7,5 @@ func main()  {
 	//初始化master service
 	master := writer.InitMatser("master",endpoints)
 	//开始监控worker的信息
-	master.WatchWorkers()
+	master.WatcherService()
 }
