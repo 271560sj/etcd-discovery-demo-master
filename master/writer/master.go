@@ -6,7 +6,6 @@ import (
 	"log"
 	"context"
 	"encoding/json"
-	"os"
 )
 //定义客户端的结构体
 type Master struct {
