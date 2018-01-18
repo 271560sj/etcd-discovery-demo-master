@@ -49,6 +49,9 @@ func InitMatser(name string,endpoints []string)  *Master{
 //获取工作节点的信息
 func WorkNodeInfos(node *etcd.Node) *SeriveInfo {
 	infos := &SeriveInfo{}
+	if node.Value == nil || node.Value == "" {
+		return infos
+	}
 	err := json.Unmarshal([]byte(node.Value), infos)
 	if err != nil {
 		log.Println("Get node infos err",err)
@@ -72,21 +75,21 @@ func (m *Master)WatcherService()  {
 		}
 		if res.Action == "set" {//如果是设置key的信息
 			infos := WorkNodeInfos(res.Node)
-			log.Println("Service info has registried",infos.ServiceName)
+			log.Println("Service info has registried ",infos)
 		}else if  res.Action == "delete"{//删除key
 			//删除操作
 			infos := WorkNodeInfos(res.Node)
-			log.Println("Service info has been deleted",infos.ServiceName)
+			log.Println("Service info has been deleted ",infos)
 		}else if res.Action == "expire" {//服务worker进程终止
 			//进程终止操作
 			infos := WorkNodeInfos(res.Node)
-			log.Println("Service has stopped",infos.ServiceName)
+			log.Println("Service has stopped ",infos)
 		}else if res.Action == "update" {
 			infos := WorkNodeInfos(res.Node)
-			log.Println("Service info has been update",infos.ServiceName)
+			log.Println("Service info has been update ",infos)
 		}else {//其他操作
 			infos := WorkNodeInfos(res.Node)
-			log.Println("Worker has done nothings",infos.ServiceName)
+			log.Println("Worker has done nothings",infos)
 		}
 	}
 }
