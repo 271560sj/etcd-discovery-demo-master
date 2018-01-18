@@ -99,13 +99,14 @@ func (m *Master)WatchWorkers()  {
 		}
 		if res.Action == "set" {//如果是设置key的信息
 			infos := WorkNodeInfos(res.Node)
-			if _,ok := m.BooksInfo[infos.IDs]; ok {//更新key的value信息
-				log.Println("Update books infos",infos.IDs)
-				m.UpdateBookInfos(infos)
-			}else {//添加key的value信息
-				log.Println("Add book infos", infos.IDs)
-				m.AddBookInfos(infos)
-			}
+			//if _,ok := m.BooksInfo[infos.IDs]; ok {//更新key的value信息
+			//	log.Println("Update books infos",infos.IDs)
+			//	m.UpdateBookInfos(infos)
+			//}else {//添加key的value信息
+			//	log.Println("Add book infos", infos.IDs)
+			//	m.AddBookInfos(infos)
+			//}
+			m.AddBookInfos(infos)
 		}else if  res.Action == "delete"{//删除key
 			//删除操作
 			infos := WorkNodeInfos(res.Node)
@@ -114,7 +115,10 @@ func (m *Master)WatchWorkers()  {
 			//进程终止操作
 			infos := WorkNodeInfos(res.Node)
 			log.Println("Service has stopped",infos.IDs)
-			break
+		}else if res.Action == "update" {
+			infos := WorkNodeInfos(res.Node)
+			log.Println("Update book's infos",infos.IDs)
+			m.UpdateBookInfos(infos)
 		}else {//其他操作
 			infos := WorkNodeInfos(res.Node)
 			log.Println("Worker has done nothings",infos.IDs)
