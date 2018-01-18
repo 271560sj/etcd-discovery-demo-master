@@ -76,6 +76,7 @@ func WorkNodeInfos(node *etcd.Node) *Books {
 }
 //接收数据
 func (m *Master)WatchWorkers()  {
+	log.Println("Waiting for books infos")
 	keyApis := m.KeyAPIs
 	watch := keyApis.Watcher("books/",&etcd.WatcherOptions{
 		Recursive: true,
@@ -97,8 +98,12 @@ func (m *Master)WatchWorkers()  {
 			}
 		}else if  res.Action == "delete"{
 			//删除操作
+			infos := WorkNodeInfos(res.Node)
+			log.Println("Delete book's infos",infos.IDs)
 		}else if res.Action == "expire" {
 			//进程终止操作
+			infos := WorkNodeInfos(res.Node)
+			log.Println("Service has stopped",infos.IDs)
 		}else {
 			infos := WorkNodeInfos(res.Node)
 			log.Println("Worker has done nothings",infos.IDs)
