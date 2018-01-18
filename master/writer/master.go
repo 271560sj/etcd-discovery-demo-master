@@ -49,7 +49,7 @@ func InitMatser(name string,endpoints []string)  *Master{
 //获取工作节点的信息
 func WorkNodeInfos(node *etcd.Node) *SeriveInfo {
 	infos := &SeriveInfo{}
-	if node.Value == nil || node.Value == "" {
+	if node.Value == "" {
 		return infos
 	}
 	err := json.Unmarshal([]byte(node.Value), infos)
