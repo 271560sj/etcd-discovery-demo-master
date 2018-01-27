@@ -21,10 +21,11 @@ type Worker struct {
 }
 
 type MasterInfo struct {
-	IP string
-	Port string
-	Name string
+	IP string `json:"ip"`
+	Port string `json:"port"`
+	Name string `json:"name"`
 }
+
 const (
 	masterKey = "masterService"
 	watcherKey = "workerService"
