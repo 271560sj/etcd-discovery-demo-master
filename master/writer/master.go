@@ -5,21 +5,33 @@ import (
 	"time"
 	"log"
 	"context"
+	"strconv"
 	"encoding/json"
-	"os"
 )
 //定义客户端的结构体
 type Master struct {
 	Name string
-	BooksInfo map[string]*Books
 	KeyAPIs etcd.KeysAPI
 }
 //定义接收的消息的结构体
-type Books struct {
+type Worker struct {
 	IDs string
 	KeyWord string
 	Infos string
 }
+
+type MasterInfo struct {
+	IP string
+	Port string
+	Name string
+}
+const (
+	masterKey = "masterService"
+	watcherKey = "workerService"
+	ip = "192.168.133.130"
+	port = "8056"
+	name = "master service"
+)
 
 //初始化master
 func InitMatser(name string,endpoints []string)  *Master{
@@ -40,88 +52,102 @@ func InitMatser(name string,endpoints []string)  *Master{
 	master := &Master{//设置master的信息，相当于一个service a
 		Name: name,//服务名称
 		KeyAPIs: etcd.NewKeysAPI(client),//获取key API ,用于操作key,进行增删改操作
-		BooksInfo: make(map[string]*Books),//记录数据信息
 	}
-	go master.WatchWorkers()//线程操作，进行监控需要的服务节点
+	go master.MasterService()//线程操作，进行监控需要的服务节点
 	return master
 }
 
-//将接收到的数据存储到本地文件books.json中
-func (m *Master)AddBookInfos(info *Books)  {
-	book := &Books{
-		IDs: info.IDs,
-		KeyWord: info.KeyWord,
-		Infos: info.Infos,
+func (m *Master)MasterService()  {
+	key := masterKey
+
+	registryInfo := &MasterInfo{
+		IP: ip,
+		Port: port,
+		Name: name,
 	}
-	m.BooksInfo[info.IDs] = book
-	file,err := os.OpenFile("./books.txt",os.O_RDWR|os.O_CREATE|os.O_APPEND,0766)
-	if err != nil {
-		log.Println("Save book infos error",err)
-	}
-	books,err := json.Marshal(book)
-	if err != nil{
-		log.Println("Change struct to json err",err)
-	}else {
-		file.WriteString(string(books))
+
+	api := m.KeyAPIs
+
+	i := 0
+	for  {
+		go registryService(api,key,registryInfo)
+		go deleteService(api,key)
+		go updateService(api,key)
+		go watchWorkers(m)
+		i ++
+		if i > 30 {
+			break
+		}
+		time.Sleep(time.Second * 3)
+
 	}
 }
-//更新数据信息
-func (m * Master)UpdateBookInfos(info *Books)  {
-	book := m.BooksInfo[info.IDs]
-	book.Infos = info.Infos
-	book.KeyWord = info.KeyWord
+
+//注册信息
+func registryService(api etcd.KeysAPI,key string,info *MasterInfo)  {
+
+	value, err := json.Marshal(info)
+	if err != nil {
+		log.Fatal("Registry master service error")
+	}else {
+		response, _ := api.Set(context.Background(),key,string(value),nil)
+		dealWithData(response)
+	}
 
 }
-//获取工作节点的信息
-func WorkNodeInfos(node *etcd.Node) *Books {
-	log.Println(node.Value)
-	infos := &Books{}
-	err := json.Unmarshal([]byte(node.Value), infos)
+
+//删除注册信息
+func deleteService(api etcd.KeysAPI,key string)  {
+	response, err := api.Delete(context.Background(),key,nil)
+
 	if err != nil {
-		log.Println("Get node infos err",err)
+		log.Println("Delete master service error")
+	}else {
+		dealWithData(response)
 	}
-	return infos
+}
+
+//更新注册信息
+func updateService(api etcd.KeysAPI,key string)  {
+	update := &MasterInfo{
+		IP: ip + ",update",
+		Port:port + ",update",
+		Name: name + ",update",
+	}
+	value,_ := json.Marshal(update)
+	response, err := api.Update(context.Background(),key,string(value))
+	if err != nil {
+		log.Println("Update service error")
+	}else {
+		dealWithData(response)
+	}
 }
 //监控需要服务的key的信息，并接收数据
-func (m *Master)WatchWorkers()  {
-	log.Println("Waiting for books infos")
+func watchWorkers(m *Master)  {
+	log.Println("Waiting for worker service infos")
 	//获取key API，用于操作key
 	keyApis := m.KeyAPIs
 	//监控key的信息
-	watch := keyApis.Watcher("books/",&etcd.WatcherOptions{
+	watch := keyApis.Watcher(watcherKey,&etcd.WatcherOptions{
 		Recursive: true,//如果是目录，进行递归操作，查询目录内部的信息
 	})
 	for {//循环操作
 		res,err := watch.Next(context.Background())//获取key的信息
 		if err != nil {//判断获取信息失败
 			log.Println("Error receiver workers:",err)
-			break
+			continue
 		}
-		if res.Action == "set" {//如果是设置key的信息
-			infos := WorkNodeInfos(res.Node)
-			//if _,ok := m.BooksInfo[infos.IDs]; ok {//更新key的value信息
-			//	log.Println("Update books infos",infos.IDs)
-			//	m.UpdateBookInfos(infos)
-			//}else {//添加key的value信息
-			//	log.Println("Add book infos", infos.IDs)
-			//	m.AddBookInfos(infos)
-			//}
-			m.AddBookInfos(infos)
-		}else if  res.Action == "delete"{//删除key
-			//删除操作
-			infos := WorkNodeInfos(res.Node)
-			log.Println("Delete book's infos",infos.IDs)
-		}else if res.Action == "expire" {//服务worker进程终止
-			//进程终止操作
-			infos := WorkNodeInfos(res.Node)
-			log.Println("Service has stopped",infos.IDs)
-		}else if res.Action == "update" {
-			infos := WorkNodeInfos(res.Node)
-			log.Println("Update book's infos",infos.IDs)
-			m.UpdateBookInfos(infos)
-		}else {//其他操作
-			infos := WorkNodeInfos(res.Node)
-			log.Println("Worker has done nothings",infos.IDs)
-		}
+		dealWithData(res)
 	}
+}
+
+//进行数据处理
+func dealWithData(response *etcd.Response)  {
+	action := response.Action
+	node := response.Node
+	key := node.Key
+	value := node.Value
+	ttl := node.TTL
+
+	log.Println(action + "," + key + "," + value + "," + strconv.FormatInt(ttl,10))
 }
